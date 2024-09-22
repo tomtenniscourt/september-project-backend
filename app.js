@@ -3,12 +3,14 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const userRoutes = require("./routes/users");
 const authRoutes = require("./routes/auth");
+const postRoutes = require("./routes/posts"); // Add this line
 
 const app = express();
 const port = 3001;
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/posts", postRoutes); // Add this line after user routes
 
 // PostgreSQL client setup
 const pool = new Pool({
