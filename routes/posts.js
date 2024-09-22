@@ -1,74 +1,57 @@
 const express = require("express");
+const authenticateToken = require("../middleware/authenticateToken");
+const router = express.Router();
 const { Pool } = require("pg");
 
-const router = express.Router();
 const pool = new Pool({
-  user: "tomcourt", // Your PostgreSQL username
+  user: "tomcourt",
   host: "localhost",
   database: "september_api",
-  password: "K983mwhatsername!", // Your PostgreSQL password
+  password: "K983mwhatsername!",
   port: 5432,
 });
 
-// CREATE a new post
-router.post("/", async (req, res) => {
-  const { title, body, user_id } = req.body;
-  if (!title || !body || !user_id) {
-    return res
-      .status(400)
-      .json({ error: "Title, body, and user ID are required." });
-  }
+// Create a post (protected)
+router.post("/", authenticateToken, async (req, res) => {
+  const { title, body } = req.body;
+  const userId = req.user.id;
+
+  const query =
+    "INSERT INTO posts (title, body, user_id) VALUES ($1, $2, $3) RETURNING *";
+  const values = [title, body, userId];
 
   try {
-    const result = await pool.query(
-      "INSERT INTO posts (title, body, user_id) VALUES ($1, $2, $3) RETURNING *",
-      [title, body, user_id]
-    );
+    const result = await pool.query(query, values);
     res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Post creation failed." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
-// READ all posts
-router.get("/", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM posts");
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error retrieving posts." });
-  }
-});
-
-// UPDATE a post
-router.put("/:id", async (req, res) => {
+// Update a post (protected)
+router.put("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { title, body } = req.body;
 
-  if (!title && !body) {
-    return res.status(400).json({ error: "Title or body is required." });
-  }
-
   const query =
-    "UPDATE posts SET title = COALESCE($1, title), body = COALESCE($2, body) WHERE id = $3 RETURNING *";
+    "UPDATE posts SET title = $1, body = $2 WHERE id = $3 RETURNING *";
   const values = [title, body, id];
 
   try {
     const result = await pool.query(query, values);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Post not found." });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Post not found" });
     }
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error updating post." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
-// DELETE a post
-router.delete("/:id", async (req, res) => {
+// Delete a post (protected)
+router.delete("/:id", authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   const query = "DELETE FROM posts WHERE id = $1 RETURNING *";
@@ -76,13 +59,13 @@ router.delete("/:id", async (req, res) => {
 
   try {
     const result = await pool.query(query, values);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Post not found." });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Post not found" });
     }
-    res.json({ message: "Post deleted." });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error deleting post." });
+    res.status(204).send(); // No content
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Database error" });
   }
 });
 
